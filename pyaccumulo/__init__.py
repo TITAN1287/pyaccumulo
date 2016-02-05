@@ -319,3 +319,22 @@ class Accumulo(object):
         :param constraint: the constraint number as returned by list constraints
         """
         self.client.removeConstraint(self.login, table, constraint)
+
+class AccumuloSASL(Accumulo):
+    """
+    Uses a SASL transport to communicate with the Accumulo Proxy service. Useful when the Accumulo Proxy has been
+    Kerberized.
+    """
+    def __init__(self, host='localhost', port=50096, user='root/admin@localhost', service='accumulo',
+                 mechanism='GSSAPI', _connect=True, **sasl_kwargs):
+        # NOTE: this purposely bypasses the parent classes' init! We don't want to inherit it's init function but we
+        #       do want to inherit all the other functions
+        super(Accumulo, self).__init__()
+        self.transport = TTransport.TSaslClientTransport(TSocket.TSocket(host, port), host, service, mechanism,
+                                                         **sasl_kwargs)
+
+        self.protocol = TCompactProtocol.TCompactProtocol(self.transport)
+        self.client = AccumuloProxy.Client(self.protocol)
+        if _connect:
+            self.transport.open()
+            self.login = self.client.login(user, {})
