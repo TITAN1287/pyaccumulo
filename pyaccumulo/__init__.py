@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from thrift import Thrift
 from thrift.transport import TSocket
 from thrift.transport import TTransport
 from thrift.protocol import TCompactProtocol
@@ -185,10 +184,10 @@ class Accumulo(object):
         self.client.importTable(self.login, table, importdir)
 
     def offline_table(self, table):
-        self.client.offlineTable(self.login, table)
+        self.client.offlineTable(self.login, table, wait=True)
 
     def online_table(self, table):
-        self.client.onlineTable(self.login, table)
+        self.client.onlineTable(self.login, table, wait=True)
 
     def write(self, table, muts):
         if not isinstance(muts, list) and not isinstance(muts, tuple):
