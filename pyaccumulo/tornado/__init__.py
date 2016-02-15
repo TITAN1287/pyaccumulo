@@ -33,6 +33,7 @@ class BatchWriter(object):
         res = yield bw.client.createWriter(bw.login, table, bw_options)
         bw._writer = res
         bw._is_closed = False
+        raise gen.Return(bw)
 
     @gen.coroutine
     def add_mutations(self, muts):
@@ -112,6 +113,7 @@ class Scanner(object):
                               scanner._get_iterator_settings(iterators), bufferSize=None)
         res = yield scanner.client.createScanner(scanner.login, table, options)
         scanner._scanner = res
+        raise gen.Return(scanner)
 
     @staticmethod
     @gen.coroutine
@@ -121,6 +123,7 @@ class Scanner(object):
                                    scanner._get_iterator_settings(iterators), threads=None)
         res = yield scanner.client.createBatchScanner(scanner.login, table, options)
         scanner._scanner = res
+        raise gen.Return(scanner)
 
     @gen.coroutine
     def next(self, batchsize=SCAN_BATCH_SIZE):
