@@ -59,13 +59,13 @@ class TornadoSaslClientTransport(TTransportBase):
             elif status == self.COMPLETE:
                 if not self.sasl.complete:
                     self.is_queuing_reads = False
-                    raise TTransportException("The server erroneously indicated "
+                    raise TTransportException(message="The server erroneously indicated "
                                               "that SASL negotiation was complete")
                 else:
                     break
             else:
                 self.is_queuing_reads = False
-                raise TTransportException("Bad SASL negotiation status: %d (%s)"
+                raise TTransportException(message="Bad SASL negotiation status: %d (%s)"
                                           % (status, challenge))
 
         self.is_queuing_reads = False
