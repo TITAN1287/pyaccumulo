@@ -5,7 +5,7 @@ from pyaccumulo import BaseIterator, Cell, _get_scan_columns
 from pyaccumulo.tornado.proxy import AccumuloProxy
 from pyaccumulo.tornado.proxy.ttypes import TimeType, WriterOptions, IteratorSetting, ScanOptions, BatchScanOptions, \
     UnknownWriter
-
+from pyaccumulo.tornado.sasltransport import TornadoSaslClientTransport
 
 BW_DEFAULTS = dict(
     max_memory=10*1024,
@@ -165,17 +165,30 @@ class Scanner(object):
 
 
 class Accumulo(object):
-    def __init__(self, host="localhost", port=50096):
+    def __init__(self, host="localhost", port=50096, **kwargs):
         super(Accumulo, self).__init__()
-        self.transport = TTornado.TTornadoStreamTransport(host, port)
+
+        # depending on extra args, we may want an SASL transport
+        if 'mechanism' in kwargs:
+            mechanism = kwargs.pop('mechanism')
+            if mechanism != 'GSSAPI':
+                raise ValueError('Only supported mechanism is "GSSAPI", but "%s" was passed in.' % kwargs['mechanism'])
+            service = 'accumulo'
+            if 'service' in kwargs:
+                service = kwargs.pop('service')
+            self.transport = TornadoSaslClientTransport(host, port, service, mechanism, **kwargs)
+        else:
+            self.transport = TTornado.TTornadoStreamTransport(host, port)
+
         self.pfactory = TCompactProtocol.TCompactProtocolFactory()
         self.client = AccumuloProxy.Client(self.transport, self.pfactory)
         self.login = None
 
     @staticmethod
     @gen.engine
-    def create_and_connect(host, port, user, password, callback):
-        acc = Accumulo(host, port)
+    def create_and_connect(host, port, user, password, **kwargs):
+        callback = kwargs.pop('callback')
+        acc = Accumulo(host, port, **kwargs)
         yield gen.Task(acc.connect, user, password)
         callback(acc)
 
