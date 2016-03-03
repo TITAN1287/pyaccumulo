@@ -160,10 +160,13 @@ class Accumulo(object):
             mechanism = kwargs.pop('mechanism')
             if mechanism != 'GSSAPI':
                 raise ValueError('Only supported mechanism is "GSSAPI", but "%s" was passed in.' % kwargs['mechanism'])
-            service = 'accumulo'
-            if 'service' in kwargs:
-                service = kwargs.pop('service')
-            self.transport = SaslClientTransport(socket, host, service, mechanism, **kwargs)
+            primary = 'accumulo'
+            if 'primary' in kwargs:
+                primary = kwargs.pop('primary')
+            instance = host
+            if 'instance' in kwargs:
+                instance = kwargs.pop('instance')
+            self.transport = SaslClientTransport(socket, instance, primary, mechanism, **kwargs)
         else:
             self.transport = TTransport.TFramedTransport(socket)
 

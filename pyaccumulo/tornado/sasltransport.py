@@ -18,13 +18,17 @@ class TornadoSaslClientTransport(TTransportBase):
     ERROR = 4
     COMPLETE = 5
 
-    def __init__(self, host, port, service, mechanism='GSSAPI', **sasl_kwargs):
+    def __init__(self, host, port, primary, mechanism='GSSAPI', **sasl_kwargs):
         self.host = host
         self.port = port
         self.is_queuing_reads = False
         self.read_queue = []
 
-        self.sasl = SASLClient(host, service, mechanism, **sasl_kwargs)
+        instance = host
+        if 'instance' in sasl_kwargs:
+            instance = sasl_kwargs.pop('instance')
+
+        self.sasl = SASLClient(instance, primary, mechanism, **sasl_kwargs)
 
         self.__wbuf = StringIO()
         self.__rbuf = StringIO()

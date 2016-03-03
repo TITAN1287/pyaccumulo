@@ -173,10 +173,10 @@ class Accumulo(object):
             mechanism = kwargs.pop('mechanism')
             if mechanism != 'GSSAPI':
                 raise ValueError('Only supported mechanism is "GSSAPI", but "%s" was passed in.' % kwargs['mechanism'])
-            service = 'accumulo'
-            if 'service' in kwargs:
-                service = kwargs.pop('service')
-            self.transport = TornadoSaslClientTransport(host, port, service, mechanism, **kwargs)
+            primary = 'accumulo'
+            if 'primary' in kwargs:
+                primary = kwargs.pop('primary')
+            self.transport = TornadoSaslClientTransport(host, port, primary, mechanism, **kwargs)
         else:
             self.transport = TTornado.TTornadoStreamTransport(host, port)
 
