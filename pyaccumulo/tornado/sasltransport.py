@@ -2,9 +2,17 @@ import socket
 from cStringIO import StringIO
 from struct import pack, unpack
 
+from thrift.transport import TSocket
+from thrift.transport import TTransport
 from thrift.transport.TTransport import TTransportBase, TTransportException
-from tornado import ioloop, gen, iostream
+from thrift.protocol import TCompactProtocol
+
 from puresasl.client import SASLClient
+
+from pyaccumulo.proxy import AccumuloProxy
+from pyaccumulo.sasltransport import SaslClientTransport
+
+from tornado import ioloop, gen, iostream
 
 
 class TornadoSaslClientTransport(TTransportBase):
@@ -24,10 +32,18 @@ class TornadoSaslClientTransport(TTransportBase):
         self.is_queuing_reads = False
         self.read_queue = []
 
-        instance = host
+        candidates = [] # we must search through instances until we connect, this is where we store them
         if 'instance' in sasl_kwargs:
-            instance = sasl_kwargs.pop('instance')
+            candidates.extend(sasl_kwargs.pop('instance').split(','))
+        else:
+            candidates.append(host)
 
+        # unfortunately we need to do the same synchronous hostname ping in the tornado version of pyaccumulo
+        # in order to get the current accumulo master
+        # this adds overhead when initially establishing a connection, but since we can't know if and when an
+        # instance will go down, we're left with no other choice but to offload some of this pain on the
+        # connection pool
+        instance = self._get_available_instance(host, port, primary, mechanism, candidates, **sasl_kwargs)
         self.sasl = SASLClient(instance, primary, mechanism, **sasl_kwargs)
 
         self.__wbuf = StringIO()
@@ -36,6 +52,32 @@ class TornadoSaslClientTransport(TTransportBase):
         # Tornado specific
         self.io_loop = ioloop.IOLoop.current()
         self.stream = None
+
+    def _get_available_instance(self, host, port, primary, mechanism, candidates, **sasl_kwargs):
+        socket = TSocket.TSocket(host, port)
+        if 'timeout' in sasl_kwargs:
+            socket.setTimeout(sasl_kwargs.pop('timeout'))
+        if not candidates:
+            return None
+
+        # simple round-robin attempt at establishing a connection when there are multiple instances defined but
+        # we don't know which master is listening.
+        while len(candidates) > 0:
+            instance = candidates.pop()
+
+            self.transport = SaslClientTransport(socket, instance, primary, mechanism, **sasl_kwargs)
+            self.protocol = TCompactProtocol.TCompactProtocol(self.transport)
+            self.client = AccumuloProxy.Client(self.protocol)
+
+            try:
+                self.transport.open()
+            except TTransportException:
+                if len(candidates) <= 0:
+                    instance = None
+            finally:
+                self.transport.close()
+
+        return instance
 
     @gen.engine
     def open(self, callback):
