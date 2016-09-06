@@ -17,7 +17,6 @@
 from thrift import Thrift
 from thrift.transport import TSocket
 from thrift.transport import TTransport
-from thrift.transport.TTransport import TTransportException
 from thrift.protocol import TCompactProtocol
 
 from pyaccumulo.proxy import AccumuloProxy
@@ -156,45 +155,27 @@ class Accumulo(object):
         if 'timeout' in kwargs:
             socket.setTimeout(kwargs.pop('timeout'))
 
-        candidates = [] # we must search through instances until we connect, this is where we store them
-        sasl = False    # sasl requires a different transport mechanism
-
-        # depending on extra arguments, we may want sasl transport
+        # depending on extra args, we may want an SASL transport
         if 'mechanism' in kwargs:
             mechanism = kwargs.pop('mechanism')
             if mechanism != 'GSSAPI':
-                raise ValueError('Only supported mechanism is "GSSAPI", but "%s" was given.' % kwargs['mechanism'])
-            sasl = True
-
+                raise ValueError('Only supported mechanism is "GSSAPI", but "%s" was passed in.' % kwargs['mechanism'])
             primary = 'accumulo'
             if 'primary' in kwargs:
                 primary = kwargs.pop('primary')
+            instance = host
             if 'instance' in kwargs:
-                candidates.extend(kwargs.pop('instance').split(','))
-            else:
-                candidates.append(host)
+                instance = kwargs.pop('instance')
+            self.transport = SaslClientTransport(socket, instance, primary, mechanism, **kwargs)
+        else:
+            self.transport = TTransport.TFramedTransport(socket)
 
-        # simple round-robin attempt at establishing a connection when there are multiple instances defined but
-        # we don't know which master is listening.
-        while len(candidates) > 0:
-            instance = candidates.pop()
-            if sasl:
-                self.transport = SaslClientTransport(socket, instance, primary, mechanism, **kwargs)
-            else:
-                self.transport = TTransport.TFramedTransport(socket)
+        self.protocol = TCompactProtocol.TCompactProtocol(self.transport)
+        self.client = AccumuloProxy.Client(self.protocol)
 
-            self.protocol = TCompactProtocol.TCompactProtocol(self.transport)
-            self.client = AccumuloProxy.Client(self.protocol)
-
-            if _connect:
-                try:
-                    self.transport.open()
-                    self.login = self.client.login(user, {'password':password})
-                    break
-                except TTransportException:
-                    self.transport.close()
-                    if len(candidates) <= 0:
-                        raise
+        if _connect:
+            self.transport.open()
+            self.login = self.client.login(user, {'password':password})
 
     def close(self):
         self.transport.close()
